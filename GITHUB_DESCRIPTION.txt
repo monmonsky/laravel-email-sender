@@ -1,0 +1,58 @@
+GitHub Repository Description (Short Version):
+==============================================
+
+A powerful email campaign management system built with Laravel 11, Vue.js 3, and Inertia.js. Send personalized bulk emails, track delivery status, manage SMTP senders, and monitor campaign analytics with a modern, responsive UI.
+
+
+GitHub Repository Description (One-liner):
+==========================================
+
+Modern email campaign manager with bulk sending, delivery tracking, and analytics - Built with Laravel, Vue.js & Inertia.js
+
+
+GitHub Topics/Tags:
+==================
+
+laravel
+laravel-11
+vuejs
+vue3
+inertiajs
+email-marketing
+email-campaign
+bulk-email
+smtp
+postgresql
+tailwindcss
+quilljs
+email-sender
+campaign-manager
+email-tracking
+queue-worker
+supervisor
+
+
+GitHub About Section:
+====================
+
+Description:
+Email Campaign Manager - Send personalized bulk emails with delivery tracking and analytics
+
+Website:
+[Your website URL if any]
+
+Topics:
+laravel, vuejs, inertiajs, email-marketing, email-campaign, postgresql, tailwindcss, bulk-email
+
+
+Social Media Share Text:
+========================
+
+Just built an Email Campaign Manager with Laravel & Vue.js!
+✉️ Bulk email sending
+📊 Delivery tracking
+🎨 Rich text editor
+📈 Analytics dashboard
+🔄 Queue-based processing
+
+#Laravel #VueJS #EmailMarketing #OpenSource
