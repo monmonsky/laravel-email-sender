@@ -15,12 +15,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
+    return redirect()->route('login');
 });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
@@ -32,6 +27,7 @@ Route::middleware('auth')->group(function () {
 
     // Campaigns
     Route::resource('campaigns', CampaignController::class);
+    Route::get('/campaigns/{id}/preview', [CampaignController::class, 'preview'])->name('campaigns.preview');
     Route::post('/campaigns/{id}/send', [CampaignController::class, 'send'])->name('campaigns.send');
 
     // Contact Lists
@@ -39,6 +35,10 @@ Route::middleware('auth')->group(function () {
 
     // Contacts
     Route::resource('contacts', ContactController::class);
+    Route::get('/contacts-import', [ContactController::class, 'importForm'])->name('contacts.import.form');
+    Route::post('/contacts-import', [ContactController::class, 'import'])->name('contacts.import');
+    Route::get('/contacts-export', [ContactController::class, 'export'])->name('contacts.export');
+    Route::get('/contacts-template', [ContactController::class, 'downloadTemplate'])->name('contacts.template');
 
     // Templates
     Route::resource('templates', TemplateController::class);

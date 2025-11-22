@@ -55,7 +55,14 @@ class CampaignEmail extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            htmlString: $this->emailContent,
+            view: 'emails.campaign',
+            with: [
+                'content' => $this->emailContent,
+                'subject' => $this->subject,
+                'senderName' => $this->senderName,
+                'unsubscribeUrl' => '#', // TODO: Implement unsubscribe
+                'preferencesUrl' => '#', // TODO: Implement preferences
+            ],
         );
     }
 

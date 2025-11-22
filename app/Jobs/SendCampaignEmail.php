@@ -6,6 +6,10 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\View;
+use Symfony\Component\Mailer\Transport;
+use Symfony\Component\Mailer\Mailer;
+use Symfony\Component\Mime\Email;
 use App\Mail\CampaignEmail;
 use App\Models\Campaign;
 use App\Models\Contact;
@@ -34,22 +38,10 @@ class SendCampaignEmail implements ShouldQueue
     public function handle(): void
     {
         try {
-            // Get default sender configuration
-            $sender = Sender::where('is_default', true)->first();
-
-            // Configure SMTP settings if sender is found
-            if ($sender) {
-                Config::set('mail.mailers.smtp.host', $sender->smtp_host);
-                Config::set('mail.mailers.smtp.port', $sender->smtp_port);
-                Config::set('mail.mailers.smtp.username', $sender->smtp_username);
-                Config::set('mail.mailers.smtp.password', $sender->smtp_password);
-                Config::set('mail.mailers.smtp.encryption', $sender->smtp_encryption);
-                Config::set('mail.from.address', $sender->from_email);
-                Config::set('mail.from.name', $sender->from_name);
-
-                // Use SMTP mailer
-                Config::set('mail.default', 'smtp');
-            }
+            // Get sender from campaign or fallback to default
+            $sender = $this->campaign->sender_id
+                ? Sender::find($this->campaign->sender_id)
+                : Sender::where('is_default', true)->first();
 
             // Replace variables in subject and content
             $subject = $this->replaceVariables($this->campaign->subject, $this->contact);
@@ -59,10 +51,46 @@ class SendCampaignEmail implements ShouldQueue
             $senderEmail = $sender ? $sender->from_email : config('mail.from.address');
             $senderName = $sender ? $sender->from_name : config('mail.from.name');
 
-            // Send email
-            Mail::to($this->contact->email)->send(
-                new CampaignEmail($subject, $content, $senderEmail, $senderName)
-            );
+            // Render email HTML
+            $html = View::make('emails.campaign', [
+                'subject' => $subject,
+                'content' => $content,
+                'senderName' => $senderName,
+                'unsubscribeUrl' => '#',
+                'preferencesUrl' => '#',
+            ])->render();
+
+            // Send using Symfony Mailer directly
+            if ($sender) {
+                // Build SMTP DSN
+                $encryption = $sender->smtp_encryption === 'ssl' ? 'ssl' : ($sender->smtp_encryption === 'tls' ? 'tls' : null);
+                $dsn = $this->buildSmtpDsn(
+                    $sender->smtp_host,
+                    $sender->smtp_port,
+                    $sender->smtp_username,
+                    $sender->smtp_password,
+                    $encryption
+                );
+
+                // Create transport and mailer
+                $transport = Transport::fromDsn($dsn);
+                $mailer = new Mailer($transport);
+
+                // Build email
+                $email = (new Email())
+                    ->from($senderEmail)
+                    ->to($this->contact->email)
+                    ->subject($subject)
+                    ->html($html);
+
+                // Send
+                $mailer->send($email);
+            } else {
+                // Fallback to Laravel mail
+                Mail::to($this->contact->email)->send(
+                    new CampaignEmail($subject, $content, $senderEmail, $senderName)
+                );
+            }
 
             // Log successful send
             CampaignLog::create([
@@ -82,6 +110,26 @@ class SendCampaignEmail implements ShouldQueue
 
             throw $e;
         }
+    }
+
+    /**
+     * Build SMTP DSN string for Symfony Mailer
+     */
+    private function buildSmtpDsn($host, $port, $username, $password, $encryption)
+    {
+        $dsn = 'smtp://';
+
+        if ($username && $password) {
+            $dsn .= urlencode($username) . ':' . urlencode($password) . '@';
+        }
+
+        $dsn .= $host . ':' . $port;
+
+        if ($encryption) {
+            $dsn .= '?encryption=' . $encryption;
+        }
+
+        return $dsn;
     }
 
     /**

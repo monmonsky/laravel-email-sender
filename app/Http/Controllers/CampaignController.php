@@ -16,24 +16,60 @@ class CampaignController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $campaigns = Campaign::with(['contactList', 'template'])
-            ->latest()
-            ->get()
-            ->map(function ($campaign) {
+        $query = Campaign::with(['contactList', 'template']);
+
+        // Filter by search (name or subject)
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'ILIKE', "%{$search}%")
+                  ->orWhere('subject', 'ILIKE', "%{$search}%");
+            });
+        }
+
+        // Filter by status
+        if ($request->has('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        // Filter by contact list
+        if ($request->has('contact_list') && $request->contact_list !== 'all') {
+            $query->where('contact_list_id', $request->contact_list);
+        }
+
+        $campaigns = $query->latest()
+            ->paginate(10)
+            ->withQueryString()
+            ->through(function ($campaign) {
                 return [
                     'id' => $campaign->id,
                     'name' => $campaign->name,
                     'contact_list' => $campaign->contactList->name ?? 'N/A',
+                    'contact_list_id' => $campaign->contact_list_id,
                     'subject' => $campaign->subject,
                     'status' => $campaign->status,
                     'created_at' => $campaign->created_at->format('M d, Y H:i:s'),
                 ];
             });
 
+        // Get contact lists for filter dropdown
+        $contactLists = ContactList::all()->map(function ($list) {
+            return [
+                'id' => $list->id,
+                'name' => $list->name,
+            ];
+        });
+
         return Inertia::render('Campaigns/Index', [
-            'campaigns' => ['data' => $campaigns]
+            'campaigns' => $campaigns,
+            'contactLists' => ['data' => $contactLists],
+            'filters' => [
+                'search' => $request->search,
+                'status' => $request->status ?? 'all',
+                'contact_list' => $request->contact_list ?? 'all',
+            ],
         ]);
     }
 
@@ -180,6 +216,53 @@ class CampaignController extends Controller
 
         return redirect()->route('campaigns.index')
             ->with('success', 'Campaign deleted successfully!');
+    }
+
+    /**
+     * Preview campaign email
+     */
+    public function preview(string $id)
+    {
+        $campaign = Campaign::with(['sender'])->findOrFail($id);
+
+        // Get first contact from the list for preview
+        $contact = Contact::where('contact_list_id', $campaign->contact_list_id)->first();
+
+        if (!$contact) {
+            return back()->with('error', 'No contacts found in the selected list!');
+        }
+
+        // Replace variables
+        $subject = $this->replaceVariables($campaign->subject, $contact);
+        $content = $this->replaceVariables($campaign->content, $contact);
+
+        $sender = $campaign->sender_id
+            ? Sender::find($campaign->sender_id)
+            : Sender::where('is_default', true)->first();
+
+        $senderName = $sender ? $sender->from_name : config('mail.from.name');
+
+        return Inertia::render('Campaigns/Preview', [
+            'campaign' => $campaign,
+            'subject' => $subject,
+            'content' => $content,
+            'senderName' => $senderName,
+            'previewContact' => $contact,
+        ]);
+    }
+
+    /**
+     * Replace variables in text
+     */
+    private function replaceVariables($text, $contact)
+    {
+        $variables = [
+            '{{name}}' => $contact->name,
+            '{{email}}' => $contact->email,
+            '{{phone}}' => $contact->phone ?? '',
+        ];
+
+        return str_replace(array_keys($variables), array_values($variables), $text);
     }
 
     /**
